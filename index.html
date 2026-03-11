@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cuenta verificada — TrackLectura</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:      #1a1208;
+      --paper:    #f5efe4;
+      --amber:    #c8860a;
+      --gold:     #e8a820;
+      --warm:     #8b5e3c;
+      --pale:     #ede5d5;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      overflow: hidden;
+    }
+
+    /* Grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 200px;
+      pointer-events: none;
+      z-index: 10;
+      opacity: 0.6;
+    }
+
+    /* Decorative corner marks */
+    .corner {
+      position: fixed;
+      width: 60px;
+      height: 60px;
+      opacity: 0.25;
+    }
+    .corner--tl { top: 24px; left: 24px; border-top: 1.5px solid var(--warm); border-left: 1.5px solid var(--warm); }
+    .corner--tr { top: 24px; right: 24px; border-top: 1.5px solid var(--warm); border-right: 1.5px solid var(--warm); }
+    .corner--bl { bottom: 24px; left: 24px; border-bottom: 1.5px solid var(--warm); border-left: 1.5px solid var(--warm); }
+    .corner--br { bottom: 24px; right: 24px; border-bottom: 1.5px solid var(--warm); border-right: 1.5px solid var(--warm); }
+
+    /* Warm radial glow */
+    .glow {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(ellipse at center, rgba(200,134,10,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Floating book particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+    .particle {
+      position: absolute;
+      font-size: 1.1rem;
+      opacity: 0;
+      animation: floatUp linear infinite;
+    }
+    @keyframes floatUp {
+      0%   { opacity: 0; transform: translateY(0) rotate(0deg); }
+      10%  { opacity: 0.25; }
+      90%  { opacity: 0.1; }
+      100% { opacity: 0; transform: translateY(-100vh) rotate(20deg); }
+    }
+
+    /* Main layout */
+    main {
+      position: relative;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      z-index: 1;
+    }
+
+    /* Book icon */
+    .book-wrap {
+      position: relative;
+      margin-bottom: 2.5rem;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: riseIn 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s forwards;
+    }
+    .book-icon {
+      width: 80px;
+      height: 80px;
+    }
+    .check-badge {
+      position: absolute;
+      bottom: -6px;
+      right: -6px;
+      width: 28px;
+      height: 28px;
+      background: var(--amber);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2.5px solid var(--paper);
+      animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.8s both;
+    }
+    .check-badge svg { width: 14px; height: 14px; }
+
+    @keyframes popIn {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+
+    /* Divider rule */
+    .rule {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 2rem;
+      opacity: 0;
+      animation: riseIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.5s forwards;
+    }
+    .rule-line {
+      width: 48px;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--warm));
+    }
+    .rule-line:last-child {
+      background: linear-gradient(to left, transparent, var(--warm));
+    }
+    .rule-diamond {
+      width: 6px;
+      height: 6px;
+      background: var(--amber);
+      transform: rotate(45deg);
+    }
+
+    /* Typography */
+    .eyebrow {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 1rem;
+      opacity: 0;
+      animation: riseIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.4s forwards;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      text-align: center;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+      opacity: 0;
+      animation: riseIn 0.7s cubic-bezier(0.16,1,0.3,1) 0.55s forwards;
+    }
+    h1 em {
+      font-style: italic;
+      color: var(--amber);
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      font-weight: 300;
+      color: var(--warm);
+      text-align: center;
+      max-width: 320px;
+      line-height: 1.65;
+      margin-bottom: 3rem;
+      opacity: 0;
+      animation: riseIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.7s forwards;
+    }
+
+    /* Card */
+    .card {
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(200,134,10,0.2);
+      border-radius: 2px;
+      padding: 1.5rem 2rem;
+      max-width: 360px;
+      width: 90%;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      opacity: 0;
+      animation: riseIn 0.6s cubic-bezier(0.16,1,0.3,1) 0.85s forwards;
+      backdrop-filter: blur(4px);
+    }
+    .card-icon {
+      font-size: 1.4rem;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+    .card-text {
+      font-size: 0.88rem;
+      color: var(--warm);
+      line-height: 1.6;
+    }
+    .card-text strong {
+      display: block;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 0.15rem;
+    }
+
+    /* CTA */
+    .cta {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--paper);
+      background: var(--ink);
+      border: none;
+      padding: 0.85rem 2.4rem;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s;
+      opacity: 0;
+      animation: riseIn 0.6s cubic-bezier(0.16,1,0.3,1) 1s forwards;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .cta::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--amber);
+      transform: translateX(-101%);
+      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+    }
+    .cta:hover { transform: translateY(-1px); }
+    .cta:hover::after { transform: translateX(0); }
+    .cta span { position: relative; z-index: 1; }
+
+    /* Footer */
+    .footer-note {
+      position: fixed;
+      bottom: 32px;
+      font-size: 0.72rem;
+      color: var(--warm);
+      opacity: 0.45;
+      letter-spacing: 0.05em;
+    }
+
+    @keyframes riseIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="corner corner--tl"></div>
+  <div class="corner corner--tr"></div>
+  <div class="corner corner--bl"></div>
+  <div class="corner corner--br"></div>
+  <div class="glow"></div>
+
+  <div class="particles" id="particles"></div>
+
+  <main>
+    <div class="book-wrap">
+      <svg class="book-icon" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="12" width="42" height="56" rx="3" fill="#e8d5b0" stroke="#c8860a" stroke-width="1.5"/>
+        <rect x="6" y="14" width="8" height="52" rx="2" fill="#c8860a" opacity="0.7"/>
+        <line x1="20" y1="26" x2="44" y2="26" stroke="#c8860a" stroke-width="1.2" opacity="0.5"/>
+        <line x1="20" y1="34" x2="44" y2="34" stroke="#c8860a" stroke-width="1.2" opacity="0.5"/>
+        <line x1="20" y1="42" x2="36" y2="42" stroke="#c8860a" stroke-width="1.2" opacity="0.5"/>
+        <rect x="52" y="18" width="18" height="24" rx="2" fill="#f5efe4" stroke="#8b5e3c" stroke-width="1.2" opacity="0.6"/>
+        <line x1="56" y1="25" x2="66" y2="25" stroke="#8b5e3c" stroke-width="1" opacity="0.4"/>
+        <line x1="56" y1="30" x2="66" y2="30" stroke="#8b5e3c" stroke-width="1" opacity="0.4"/>
+      </svg>
+      <div class="check-badge">
+        <svg viewBox="0 0 14 14" fill="none">
+          <polyline points="2,7 5.5,10.5 12,4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <p class="eyebrow">TrackLectura</p>
+
+    <div class="rule">
+      <div class="rule-line"></div>
+      <div class="rule-diamond"></div>
+      <div class="rule-line"></div>
+    </div>
+
+    <h1>Tu cuenta ha sido<br/><em>verificada</em></h1>
+
+    <p class="subtitle">Ya puedes volver a la aplicación e iniciar sesión para empezar a registrar tus lecturas.</p>
+
+    <div class="card">
+      <span class="card-icon">📖</span>
+      <div class="card-text">
+        <strong>¿Qué sigue?</strong>
+        Cierra esta ventana y abre TrackLectura. Inicia sesión con tu correo y contraseña y empieza a registrar tus libros.
+      </div>
+    </div>
+
+    <a class="cta" href="#" onclick="window.close(); return false;">
+      <span>Cerrar esta ventana</span>
+    </a>
+  </main>
+
+  <p class="footer-note">tracklectura &nbsp;·&nbsp; cuenta verificada correctamente</p>
+
+  <script>
+    // Floating book/page particles
+    const emojis = ['📄', '✦', '◆', '❧', '✿', '※'];
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 18; i++) {
+      const el = document.createElement('span');
+      el.className = 'particle';
+      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      el.style.left = Math.random() * 100 + 'vw';
+      el.style.bottom = '-20px';
+      el.style.animationDuration = (14 + Math.random() * 18) + 's';
+      el.style.animationDelay = (Math.random() * 20) + 's';
+      el.style.fontSize = (0.6 + Math.random() * 0.8) + 'rem';
+      container.appendChild(el);
+    }
+  </script>
+</body>
+</html>
