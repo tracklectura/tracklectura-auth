@@ -182,13 +182,13 @@
   <span class="back-link">TrackLectura · Gestión de lectura personal</span>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
-  // ── Configuración ─────────────────────────────────────────────────────────
-  // IMPORTANTE: reemplaza estos valores con los de tu proyecto Supabase.
-  // Puedes encontrarlos en Settings → API de tu proyecto.
-  const SUPABASE_URL  = 'https://TU_PROYECTO.supabase.co';   // ← cambia esto
-  const SUPABASE_ANON = 'TU_ANON_KEY';                        // ← cambia esto
-  // ─────────────────────────────────────────────────────────────────────────
+  const SUPABASE_URL  = 'https://cptbivigiemodirfwgny.supabase.co';
+  const SUPABASE_ANON = 'sb_publishable_yrKf2Xttz-C5VFHTokeQgg_rPwc9NTP';
+
+  const { createClient } = supabase;
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON);
 
   const viewForm    = document.getElementById('view-form');
   const viewInvalid = document.getElementById('view-invalid');
@@ -200,41 +200,43 @@
   const fill        = document.getElementById('strength-fill');
   const strengthTxt = document.getElementById('strength-text');
 
-  // ── Extraer tokens del fragmento de la URL ────────────────────────────────
-  // Supabase los pone en el hash: #access_token=xxx&type=recovery&...
-  function parseHash() {
-    const hash = window.location.hash.substring(1);
-    const params = {};
-    hash.split('&').forEach(pair => {
-      const [k, v] = pair.split('=');
-      if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
-    });
-    return params;
-  }
+  // ── Detectar el evento de sesión de recovery ──────────────────────────────
+  // El SDK escucha el hash automáticamente y dispara PASSWORD_RECOVERY
+  // cuando el enlace es de tipo recovery. Si no dispara, el enlace no es válido.
+  let sessionReady = false;
 
-  const params = parseHash();
-  const accessToken = params['access_token'];
-  const tokenType   = params['type'];         // "recovery" para reset de contraseña
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      sessionReady = true;
+      // El SDK ya estableció la sesión internamente; podemos llamar a updateUser
+    } else if (!sessionReady && event !== 'SIGNED_IN') {
+      // No hay token de recovery válido
+      viewForm.style.display    = 'none';
+      viewInvalid.style.display = 'block';
+    }
+  });
 
-  // Si no hay token de recovery, mostrar vista de enlace inválido
-  if (!accessToken || tokenType !== 'recovery') {
-    viewForm.style.display    = 'none';
-    viewInvalid.style.display = 'block';
-  }
+  // Seguridad extra: si tras 3 segundos no llegó PASSWORD_RECOVERY, mostrar error
+  setTimeout(() => {
+    if (!sessionReady) {
+      viewForm.style.display    = 'none';
+      viewInvalid.style.display = 'block';
+    }
+  }, 3000);
 
-  // ── Indicador de fortaleza de contraseña ──────────────────────────────────
+  // ── Indicador de fortaleza ────────────────────────────────────────────────
   function evaluarFortaleza(p) {
     let score = 0;
-    if (p.length >= 6)  score++;
-    if (p.length >= 10) score++;
-    if (/[A-Z]/.test(p)) score++;
-    if (/[0-9]/.test(p)) score++;
+    if (p.length >= 6)        score++;
+    if (p.length >= 10)       score++;
+    if (/[A-Z]/.test(p))     score++;
+    if (/[0-9]/.test(p))     score++;
     if (/[^A-Za-z0-9]/.test(p)) score++;
-    return score; // 0-5
+    return score;
   }
 
   pwd.addEventListener('input', () => {
-    const p = pwd.value;
+    const p     = pwd.value;
     const score = evaluarFortaleza(p);
     const pct   = Math.min(100, score * 20);
     const colors = ['#e53935','#e53935','#fb8c00','#fdd835','#43a047','#2e7d32'];
@@ -250,49 +252,35 @@
   function validar() {
     const ok = pwd.value.length >= 6 && pwd.value === pwd2.value;
     submitBtn.disabled = !ok;
-    if (pwd2.value && pwd.value !== pwd2.value) {
-      pwd2.style.borderColor = '#e57373';
-    } else {
-      pwd2.style.borderColor = '#3a3a3a';
-    }
+    pwd2.style.borderColor = (pwd2.value && pwd.value !== pwd2.value) ? '#e57373' : '#3a3a3a';
   }
 
   // ── Envío ─────────────────────────────────────────────────────────────────
   submitBtn.addEventListener('click', async () => {
+    if (!sessionReady) {
+      showMsg('El enlace no es válido o ha caducado.', 'error');
+      return;
+    }
+
     submitBtn.disabled = true;
     showMsg('Guardando...', 'info');
 
-    try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-        method: 'PUT',
-        headers: {
-          'apikey':        SUPABASE_ANON,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type':  'application/json'
-        },
-        body: JSON.stringify({ password: pwd.value })
-      });
+    const { error } = await client.auth.updateUser({ password: pwd.value });
 
-      if (res.ok) {
-        // Mostrar vista de éxito
-        viewForm.style.display = 'none';
-        viewDone.style.display = 'block';
-      } else {
-        const data = await res.json().catch(() => ({}));
-        const errMsg = data.message || data.msg || `Error ${res.status}`;
-        showMsg('Error: ' + errMsg, 'error');
-        submitBtn.disabled = false;
-      }
-    } catch (e) {
-      showMsg('Error de red. Comprueba tu conexión.', 'error');
+    if (error) {
+      showMsg('Error: ' + error.message, 'error');
       submitBtn.disabled = false;
+    } else {
+      await client.auth.signOut();
+      viewForm.style.display = 'none';
+      viewDone.style.display = 'block';
     }
   });
 
   function showMsg(text, type) {
-    msg.textContent    = text;
-    msg.className      = 'message ' + type;
-    msg.style.display  = 'block';
+    msg.textContent   = text;
+    msg.className     = 'message ' + type;
+    msg.style.display = 'block';
   }
 </script>
 </body>
