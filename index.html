@@ -179,6 +179,16 @@
     </p>
   </div>
 
+  <!-- Vista: cuenta verificada (confirmación de registro) -->
+  <div id="view-verified" style="display:none;text-align:center;">
+    <div class="icon">✅</div>
+    <h1 style="margin-bottom:10px">¡Cuenta verificada!</h1>
+    <p>
+      Tu cuenta ha sido confirmada correctamente.<br/>
+      <strong>Ya puedes iniciar sesión en TrackLectura.</strong>
+    </p>
+  </div>
+
   <span class="back-link">TrackLectura · Gestión de lectura personal</span>
 </div>
 
@@ -200,29 +210,45 @@
   const fill        = document.getElementById('strength-fill');
   const strengthTxt = document.getElementById('strength-text');
 
-  // ── Detectar el evento de sesión de recovery ──────────────────────────────
-  // El SDK escucha el hash automáticamente y dispara PASSWORD_RECOVERY
-  // cuando el enlace es de tipo recovery. Si no dispara, el enlace no es válido.
+  // ── Detectar el tipo de enlace desde el hash ─────────────────────────────
+  // Supabase pone el tipo en el hash: #access_token=xxx&type=recovery|signup
+  function getHashParam(key) {
+    const hash = window.location.hash.substring(1);
+    const pair = hash.split('&').find(p => p.startsWith(key + '='));
+    return pair ? decodeURIComponent(pair.split('=')[1]) : null;
+  }
+
+  const hashType  = getHashParam('type');
+  const hashToken = getHashParam('access_token');
+
+  // Si es confirmación de registro (signup), mostrar pantalla de éxito directamente
+  if (hashType === 'signup' || hashType === 'magiclink') {
+    viewForm.style.display                                     = 'none';
+    document.getElementById('view-verified').style.display    = 'block';
+  }
+
   let sessionReady = false;
 
-  client.auth.onAuthStateChange((event, session) => {
-    if (event === 'PASSWORD_RECOVERY') {
-      sessionReady = true;
-      // El SDK ya estableció la sesión internamente; podemos llamar a updateUser
-    } else if (!sessionReady && event !== 'SIGNED_IN') {
-      // No hay token de recovery válido
-      viewForm.style.display    = 'none';
-      viewInvalid.style.display = 'block';
-    }
-  });
+  // Solo activar el formulario si es un enlace de recovery
+  if (hashType === 'recovery' && hashToken) {
+    client.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        sessionReady = true;
+      }
+    });
 
-  // Seguridad extra: si tras 3 segundos no llegó PASSWORD_RECOVERY, mostrar error
-  setTimeout(() => {
-    if (!sessionReady) {
-      viewForm.style.display    = 'none';
-      viewInvalid.style.display = 'block';
-    }
-  }, 3000);
+    // Si tras 4 segundos no llega el evento, el token es inválido o caducó
+    setTimeout(() => {
+      if (!sessionReady) {
+        viewForm.style.display    = 'none';
+        viewInvalid.style.display = 'block';
+      }
+    }, 4000);
+  } else if (hashType !== 'signup' && hashType !== 'magiclink') {
+    // No es ningún enlace conocido de Supabase → enlace inválido
+    viewForm.style.display    = 'none';
+    viewInvalid.style.display = 'block';
+  }
 
   // ── Indicador de fortaleza ────────────────────────────────────────────────
   function evaluarFortaleza(p) {
